@@ -1,0 +1,50 @@
+name: build
+
+on:
+  push:
+    branches:
+    - '**'
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout local repo
+      uses: actions/checkout@v2
+
+    - name: Checkout cadvisor repo
+      uses: actions/checkout@v2
+      with:
+        repository: google/cadvisor
+        path: cadvisor
+        fetch-depth: 0
+
+    - name: Set up QEMU
+      uses: docker/setup-qemu-action@v1
+
+    - name: Set up buildx
+      uses: docker/setup-buildx-action@v1
+      id: buildx
+
+    - name: Login to Docker Hub
+      run: |
+        docker login \
+          -u ${{ secrets.DOCKER_USERNAME }} \
+          -p ${{ secrets.DOCKER_TOKEN }}
+
+    - name: Set tag
+      run: |
+        echo "IMAGE_TAG=$( \
+          cd cadvisor; \
+          git describe --tags --abbrev=0 \
+          | sed 's/,/./g; s/v//')" \
+          >> $GITHUB_ENV
+
+    - name: Build image
+      run: |
+        docker buildx build \
+          --platform linux/amd64,linux/arm64 \
+          --tag raylas/cadvisor:latest \
+          --tag raylas/cadvisor:${{ env.IMAGE_TAG }} \
+          --push \
+          .
